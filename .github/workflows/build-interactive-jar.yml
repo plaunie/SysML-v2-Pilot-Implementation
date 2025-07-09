@@ -1,32 +1,49 @@
-name: Build SysML Interactive Jar (No Publish)
+name: Build SysML Interactive Jar (private, no publish)
 
-on:                # Manual trigger only
+on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read          # prevents any pushes or releases
+      contents: read          # prevents pushes/releases
 
     steps:
-      # 1️⃣  Full checkout (fetch-depth:0 avoids sparse clones)
-      - name: Checkout repository
+      - name: Checkout repo (full)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2️⃣  Java 17 – required by the pilot implementation
-      - name: Set up Temurin 17
+      # 👉 Use JDK 21  ──────────────────────────────────────────────
+      #   (change to '17' if you apply the JavaSE-17 downgrade fix)
+      - name: Set up Temurin 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
-      # 3️⃣  Build ONLY the interactive module and its deps
-      #     -DskipTests          ⇒ unit & integration tests off
-      #     -Dmaven.deploy.skip  ⇒ disables maven-deploy-plugin
-      - name: Maven package (interactive only, no deploy)
+      # 👉 Upgrade Tycho to 4.0.12 so it recognises JavaSE-21
+      #    (comment this block out if you do the quick EE-17 patch)
+      - name: Bump Tycho to 4.0.12
+        run: |
+          find . -name pom.xml -exec \
+            sed -i 's/<tycho.version>[^<]\+<\/tycho.version>/<tycho.version>4.0.12<\/tycho.version>/g' {} +
+
+      # Optional alternative: quick-patch JavaSE-21 → JavaSE-17
+      # - name: Downgrade EE to JavaSE-17  (Fix A)
+      #   run: |
+      #     find . \( -name pom.xml -o -name MANIFEST.MF \) -exec \
+      #       sed -i 's/JavaSE-21/JavaSE-17/g' {} +
+
+      # Disable maven-deploy-plugin to stop publishing attempts
+      - name: Strip deploy plugin
+        run: |
+          find . -name pom.xml -exec \
+            sed -i '/maven-deploy-plugin/,/<\/plugin>/d' {} +
+
+      # Build only the interactive module and its deps, skip tests
+      - name: Maven package (interactive only)
         run: |
           mvn -B \
               --projects org.omg.sysml.interactive \
@@ -35,15 +52,14 @@ jobs:
               -Dmaven.deploy.skip=true \
               clean package
 
-      # 4️⃣  Package the fat-jar into a small ZIP
-      - name: Zip distribution
+      # Bundle the fat-jar
+      - name: Zip artifact
         run: |
-          JAR_PATH=$(ls org.omg.sysml.interactive/target/org.omg.sysml.interactive-*-all.jar)
-          mkdir -p dist
-          cp "$JAR_PATH" dist/sysml-interactive.jar
-          ( cd dist && zip -r ../sysml-interactive-dist.zip . )
+          JAR=$(ls org.omg.sysml.interactive/target/org.omg.sysml.interactive-*-all.jar)
+          mkdir dist && cp "$JAR" dist/sysml-interactive.jar
+          (cd dist && zip -r ../sysml-interactive-dist.zip .)
 
-      # 5️⃣  Upload for private download (retained 7 days)
+      # Upload privately (retained 7 days)
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
