@@ -1,5 +1,4 @@
-name: Build SysML-CLI Only (No Publish)
-
+name: Build SysML-CLI Only (No Publish) 
 on:
   workflow_dispatch:
 
