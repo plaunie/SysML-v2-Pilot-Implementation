@@ -7,59 +7,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read          # prevents pushes/releases
+      contents: read          # no pushes / no releases
 
     steps:
-      - name: Checkout repo (full)
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0      # full clone so Maven can resolve modules
 
-      # 👉 Use JDK 21  ──────────────────────────────────────────────
-      #   (change to '17' if you apply the JavaSE-17 downgrade fix)
       - name: Set up Temurin 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      # 👉 Upgrade Tycho to 4.0.12 so it recognises JavaSE-21
-      #    (comment this block out if you do the quick EE-17 patch)
-      - name: Bump Tycho to 4.0.12
-        run: |
-          find . -name pom.xml -exec \
-            sed -i 's/<tycho.version>[^<]\+<\/tycho.version>/<tycho.version>4.0.12<\/tycho.version>/g' {} +
-
-      # Optional alternative: quick-patch JavaSE-21 → JavaSE-17
-      # - name: Downgrade EE to JavaSE-17  (Fix A)
-      #   run: |
-      #     find . \( -name pom.xml -o -name MANIFEST.MF \) -exec \
-      #       sed -i 's/JavaSE-21/JavaSE-17/g' {} +
-
-      # Disable maven-deploy-plugin to stop publishing attempts
-      - name: Strip deploy plugin
-        run: |
-          find . -name pom.xml -exec \
-            sed -i '/maven-deploy-plugin/,/<\/plugin>/d' {} +
-
-      # Build only the interactive module and its deps, skip tests
-      - name: Maven package (interactive only)
+      # Build ONLY the interactive module (+ deps), skip tests & deploy
+      - name: Maven package
         run: |
           mvn -B \
               --projects org.omg.sysml.interactive \
               --also-make \
+              -Dtycho.version=4.0.12 \        # ← overrides ${tycho.version}
               -DskipTests \
               -Dmaven.deploy.skip=true \
               clean package
 
-      # Bundle the fat-jar
       - name: Zip artifact
         run: |
           JAR=$(ls org.omg.sysml.interactive/target/org.omg.sysml.interactive-*-all.jar)
           mkdir dist && cp "$JAR" dist/sysml-interactive.jar
           (cd dist && zip -r ../sysml-interactive-dist.zip .)
 
-      # Upload privately (retained 7 days)
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
