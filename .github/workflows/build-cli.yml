@@ -1,0 +1,30 @@
+name: Build SysML‑CLI (Private)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # no write permission
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build CLI only (no publish)
+        run: ./gradlew :sysml-cli:installDist --no-daemon --offline
+
+      - name: Package CLI
+        run: zip -r sysml-cli-dist.zip sysml-cli/build/install/sysml-cli
+
+      - name: Upload artifact for manual download
+        uses: actions/upload-artifact@v3
+        with:
+          name: sysml-cli-dist
+          path: sysml-cli-dist.zip
