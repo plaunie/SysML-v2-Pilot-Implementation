@@ -1,0 +1,52 @@
+name: Build SysML Interactive Jar (No Publish)
+
+on:                # Manual trigger only
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read          # prevents any pushes or releases
+
+    steps:
+      # 1️⃣  Full checkout (fetch-depth:0 avoids sparse clones)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2️⃣  Java 17 – required by the pilot implementation
+      - name: Set up Temurin 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 3️⃣  Build ONLY the interactive module and its deps
+      #     -DskipTests          ⇒ unit & integration tests off
+      #     -Dmaven.deploy.skip  ⇒ disables maven-deploy-plugin
+      - name: Maven package (interactive only, no deploy)
+        run: |
+          mvn -B \
+              --projects org.omg.sysml.interactive \
+              --also-make \
+              -DskipTests \
+              -Dmaven.deploy.skip=true \
+              clean package
+
+      # 4️⃣  Package the fat-jar into a small ZIP
+      - name: Zip distribution
+        run: |
+          JAR_PATH=$(ls org.omg.sysml.interactive/target/org.omg.sysml.interactive-*-all.jar)
+          mkdir -p dist
+          cp "$JAR_PATH" dist/sysml-interactive.jar
+          ( cd dist && zip -r ../sysml-interactive-dist.zip . )
+
+      # 5️⃣  Upload for private download (retained 7 days)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sysml-interactive-dist
+          path: sysml-interactive-dist.zip
+          retention-days: 7
