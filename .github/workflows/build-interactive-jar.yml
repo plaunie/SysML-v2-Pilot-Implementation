@@ -1,36 +1,27 @@
-name: Build SysML Interactive Jar (private, no publish)
+name: Build SysML Interactive Jar (private)
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read          # no pushes / no releases
+      contents: read
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0      # full clone so Maven can resolve modules
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
-      - name: Set up Temurin 21
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      # Build ONLY the interactive module (+ deps), skip tests & deploy
       - name: Maven package
-        run: |
-          mvn -B \
-              --projects org.omg.sysml.interactive \
-              --also-make \
-              -Dtycho.version=4.0.12 \        # ← overrides ${tycho.version}
-              -DskipTests \
-              -Dmaven.deploy.skip=true \
-              clean package
+        run: >
+          mvn -B --projects org.omg.sysml.interactive --also-make
+          -Dtycho.version=4.0.12 -DskipTests -Dmaven.deploy.skip=true
+          clean package
 
       - name: Zip artifact
         run: |
@@ -38,8 +29,7 @@ jobs:
           mkdir dist && cp "$JAR" dist/sysml-interactive.jar
           (cd dist && zip -r ../sysml-interactive-dist.zip .)
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: sysml-interactive-dist
           path: sysml-interactive-dist.zip
