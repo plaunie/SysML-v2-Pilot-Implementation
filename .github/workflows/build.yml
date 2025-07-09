@@ -1,4 +1,5 @@
-name: Build SysML-CLI Only (No Publish) 
+name: Build SysML-CLI Only (No Publish)
+
 on:
   workflow_dispatch:
 
@@ -10,10 +11,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
@@ -23,14 +24,15 @@ jobs:
           echo "Removing deploy plugin from pom.xml..."
           find . -name pom.xml -exec sed -i '/maven-deploy-plugin/,/<\/plugin>/d' {} +
 
-      - name: Build CLI only (skip publish, skip tests)
+      - name: Build CLI only (skip publish)
         run: ./gradlew :sysml-cli:installDist --no-daemon
 
       - name: Package CLI
         run: zip -r sysml-cli-dist.zip sysml-cli/build/install/sysml-cli
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
         with:
           name: sysml-cli-dist
           path: sysml-cli-dist.zip
+          retention-days: 7
