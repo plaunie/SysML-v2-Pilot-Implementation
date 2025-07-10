@@ -1,12 +1,11 @@
-name: Build SysML Interactive Jar (private)
+name: Build SysML CLI Jar (private)
 
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    permissions: { contents: read }
 
     steps:
       - uses: actions/checkout@v4
@@ -17,20 +16,20 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Maven package
+      - name: Maven package (CLI only)
         run: >
-          mvn -B --projects org.omg.sysml.interactive --also-make
+          mvn -B --projects org.omg.sysml.cli --also-make
           -Dtycho.version=4.0.12 -DskipTests -Dmaven.deploy.skip=true
           clean package
 
       - name: Zip artifact
         run: |
-          JAR=$(ls org.omg.sysml.interactive/target/org.omg.sysml.interactive-*-all.jar)
-          mkdir dist && cp "$JAR" dist/sysml-interactive.jar
-          (cd dist && zip -r ../sysml-interactive-dist.zip .)
+          JAR=$(ls org.omg.sysml.cli/target/org.omg.sysml.cli-*-all.jar)
+          mkdir dist && cp "$JAR" dist/sysml-cli.jar
+          (cd dist && zip -r ../sysml-cli-dist.zip .)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sysml-interactive-dist
-          path: sysml-interactive-dist.zip
+          name: sysml-cli-dist
+          path: sysml-cli-dist.zip
           retention-days: 7
