@@ -1,36 +1,40 @@
-name: Build SysML CLI (private, no publish)
+name: Build non-interactive SysML CLI
 
-on:
-  workflow_dispatch:      # run manually
+on: workflow_dispatch        # run manually
 
 jobs:
   build-cli:
     runs-on: ubuntu-latest
-    permissions: { contents: read }  # prevents pushes / releases
+    permissions: { contents: read }
 
     steps:
-      # 1️⃣ Full checkout (Gradle wrapper is at repo root)
+      # --- (A) checkout your fork (optional) ------------
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      # 2️⃣ Java 17 (Gradle build requires 17)
+      # --- (B) shallow-clone the Gradle sub-repo --------
+      - name: Clone pilot-impl sources
+        run: |
+          git clone --depth 1 https://github.com/Systems-Modeling/SysML-v2-Pilot-Implementation.git pilot-impl
+
+      # --- (C) Java 17 for Gradle -----------------------
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      # 3️⃣ Build only the sysml-cli distribution (no publish)
-      - name: Gradle installDist
-        run: |
-          ./gradlew :sysml-cli:installDist --no-daemon --warning-mode all
+      # --- (D) build only the CLI -----------------------
+      - name: Gradle :sysml-cli:installDist
+        working-directory: pilot-impl/sysml-cli
+        run: ./gradlew installDist --no-daemon --warning-mode all
 
-      # 4️⃣ Zip the distribution folder
-      - name: Zip CLI
+      # --- (E) zip the distribution ---------------------
+      - name: Zip sysml-cli
         run: |
-          cd sysml-cli/build/install
+          cd pilot-impl/sysml-cli/build/install
           zip -r ${{ github.workspace }}/sysml-cli-dist.zip sysml-cli
 
-      # 5️⃣ Upload artifact for private download (kept 7 days)
+      # --- (F) upload for private download --------------
       - uses: actions/upload-artifact@v4
         with:
           name: sysml-cli-dist
