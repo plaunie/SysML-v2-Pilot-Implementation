@@ -1,33 +1,36 @@
-name: Build SysML CLI Jar (private)
+name: Build SysML CLI (private, no publish)
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:      # run manually
 
 jobs:
-  build:
+  build-cli:
     runs-on: ubuntu-latest
-    permissions: { contents: read }
+    permissions: { contents: read }  # prevents pushes / releases
 
     steps:
+      # 1️⃣ Full checkout (Gradle wrapper is at repo root)
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
+      # 2️⃣ Java 17 (Gradle build requires 17)
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "17"
 
-      - name: Maven package (CLI only)
-        run: >
-          mvn -B --projects org.omg.sysml.cli --also-make
-          -Dtycho.version=4.0.12 -DskipTests -Dmaven.deploy.skip=true
-          clean package
-
-      - name: Zip artifact
+      # 3️⃣ Build only the sysml-cli distribution (no publish)
+      - name: Gradle installDist
         run: |
-          JAR=$(ls org.omg.sysml.cli/target/org.omg.sysml.cli-*-all.jar)
-          mkdir dist && cp "$JAR" dist/sysml-cli.jar
-          (cd dist && zip -r ../sysml-cli-dist.zip .)
+          ./gradlew :sysml-cli:installDist --no-daemon --warning-mode all
 
+      # 4️⃣ Zip the distribution folder
+      - name: Zip CLI
+        run: |
+          cd sysml-cli/build/install
+          zip -r ${{ github.workspace }}/sysml-cli-dist.zip sysml-cli
+
+      # 5️⃣ Upload artifact for private download (kept 7 days)
       - uses: actions/upload-artifact@v4
         with:
           name: sysml-cli-dist
