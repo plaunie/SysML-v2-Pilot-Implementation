@@ -1,4 +1,5 @@
-name: Build interactive fat jar
+name: Build interactive fat-jar
+
 
 on:
   push:
@@ -13,24 +14,27 @@ jobs:
       GH_PACKAGES_PAT: ${{ secrets.GH_PACKAGES_PAT }}
 
     steps:
+      # 1. Checkout full history
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
+
+      # 2. Set up Temurin JDK 21
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
-      - name: Cache Maven repository
-        uses: actions/cache@v3
+      # 3. Cache Maven repository
+      - uses: actions/cache@v3
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2-
 
-      - name: Inject Tycho 3.0.4
+      # 4. Inject Tycho 3.0.4 and build fat-jar
+      - name: Build interactive shaded jar
         run: |
           mkdir -p .mvn
           cat <<'XML' > .mvn/extensions.xml
@@ -43,8 +47,6 @@ jobs:
           </extensions>
           XML
 
-      - name: Build interactive fat jar
-        run: |
           ./mvnw -B \
             -pl org.omg.sysml.interactive -am \
             -Pstandalone \
@@ -52,32 +54,22 @@ jobs:
             -Dtycho.executionEnvironment=JavaSE-21 \
             package
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      # 5. Optionally deploy to GitHub Packages
+      - name: Deploy to GitHub Packages
+        if: env.GH_PACKAGES_PAT != ''
+        run: |
+          ./mvnw -B \
+            deploy \
+            -pl org.omg.sysml.interactive -am \
+            -Pstandalone \
+            -DskipTests \
+            -Dtycho.executionEnvironment=JavaSE-21
+        env:
+          GITHUB_TOKEN: ${{ env.GH_PACKAGES_PAT }}
+
+      # 6. Upload fat-jar artifact
+      - uses: actions/upload-artifact@v4
         with:
           name: sysml-interactive-fatjar
           path: org.omg.sysml.interactive/target/*-all.jar
 
-      - name: Publish to GitHub Packages
-        if: env.GH_PACKAGES_PAT != ''
-        env:
-          GH_PACKAGES_PAT: ${{ env.GH_PACKAGES_PAT }}
-        run: |
-          mkdir -p ~/.m2
-          cat <<'XML' > ~/.m2/settings.xml
-          <settings>
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${{ github.actor }}</username>
-                <password>${GH_PACKAGES_PAT}</password>
-              </server>
-            </servers>
-          </settings>
-          XML
-          ./mvnw -B \
-            -pl org.omg.sysml.interactive -am \
-            -Pstandalone \
-            -DskipTests \
-            -Dtycho.executionEnvironment=JavaSE-21 \
-            deploy
