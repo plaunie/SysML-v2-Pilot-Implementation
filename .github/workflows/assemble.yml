@@ -1,4 +1,4 @@
-name: build-interactive-fatjar
+name: build-pilot-interactive
 
 on:
   workflow_dispatch:
@@ -11,38 +11,47 @@ jobs:
     timeout-minutes: 60
 
     steps:
-    # 1️⃣  Checkout
+    # ─── 1 ▸ Checkout ───────────────────────────────────────
     - uses: actions/checkout@v4
       with: { fetch-depth: 0 }
 
-    # 2️⃣  JDK 17  (Tycho 2.7+ understands Java 17)
+    # ─── 2 ▸ JDK 21  (to match the EE in the POMs) ─────────
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
-        java-version: "17"
+        java-version: "21"
 
-    # 3️⃣  Maven cache
+    # ─── 3 ▸ Cache Maven repo ───────────────────────────────
     - uses: actions/cache@v3
       with:
         path: ~/.m2/repository
         key:  ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
 
-    # 4️⃣  Build shaded jar for **interactive** module only
-    #     • -P product —> turns off the Eclipse-plugin packaging and
-    #                     activates the "standalone" packaging defined by SST
-    #     • -D tycho.executionEnvironment=JavaSE-17
-    #     • -pl org.omg.sysml.interactive -am  (makes upstream deps first)
-    - name: Build interactive fat-jar
+    # ─── 4 ▸ Build shaded JAR  ──────────────────────────────
+    #        -Pstandalone comes from sysml-pilot POM; it triggers the
+    #        maven-shade-plugin for org.omg.sysml.interactive
+    #        Tycho 3.x is injected via .mvn/extensions.xml
+    - name: Build interactive shaded jar
       run: |
+        # Tycho 3 so it knows JavaSE-21
+        mkdir -p .mvn
+        cat <<'XML' > .mvn/extensions.xml
+        <extensions>
+          <extension>
+            <groupId>org.eclipse.tycho</groupId>
+            <artifactId>tycho-maven-plugin</artifactId>
+            <version>3.0.4</version>
+          </extension>
+        </extensions>
+        XML
+
         ./mvnw -B \
-          -Pproduct \
-          -Dtycho.executionEnvironment=JavaSE-17 \
-          -DskipTests \
+          -Pstandalone -DskipTests \
           -pl org.omg.sysml.interactive -am \
           package
 
-    # 5️⃣  Upload the jar
+    # ─── 5 ▸ Upload artefact ────────────────────────────────
     - uses: actions/upload-artifact@v4
       with:
-        name: sysml-services-jar
+        name: sysml-interactive-fatjar
         path: org.omg.sysml.interactive/target/org.omg.sysml.interactive*-all.jar
