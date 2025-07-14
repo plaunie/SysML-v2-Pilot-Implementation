@@ -24,6 +24,14 @@ jobs:
         distribution: temurin
         java-version: "17"
 
+    # --- NEW: install sbt launcher -------------------------
+    - name: Install sbt 1.9
+      run: |
+        curl -sL https://github.com/sbt/sbt/releases/download/v1.9.9/sbt-1.9.9.tgz -o sbt.tgz
+        tar -xzf sbt.tgz
+        echo "$PWD/sbt/bin" >> $GITHUB_PATH
+    # -------------------------------------------------------
+
     # ---------- BUILD -------------
     - name: Cache ~/.ivy2 + ~/.sbt     # speeds up repeat builds
       uses: actions/cache@v3
