@@ -1,53 +1,45 @@
-name: build-fat-jar
+name: build-fat-jar (pilot-impl)
 
-# ──────────────── TRIGGERS ────────────────
 on:
-  workflow_dispatch:           # manual “Run workflow”
+  workflow_dispatch:           # manual trigger
   push:
-    branches: [ main ]         # every merge to main branch
-  schedule:
-    - cron: "0 2 * * *"        # optional nightly build at 02:00 UTC
+    branches: [ main ]         # build on every merge to main
 
-# ───────────────── JOB ────────────────────
 jobs:
-  assembly:
-    runs-on: ubuntu-latest       # change to self-hosted if public runners not allowed
-    timeout-minutes: 45
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
-    # 1) Checkout
+    # ── 1 ▸ Checkout  ─────────────────────────────────────────────
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0           # pull tags → dynver can embed version in JAR name
+        fetch-depth: 0
 
-    # 2) JDK 17
+    # ── 2 ▸ JDK 17 (build + run)  ────────────────────────────────
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
         java-version: "17"
 
-    # 3) sbt launcher (tiny download, no root)
-    - name: Install sbt 1.9
-      run: |
-        curl -sL https://github.com/sbt/sbt/releases/download/v1.9.9/sbt-1.9.9.tgz -o sbt.tgz
-        tar -xzf sbt.tgz
-        echo "$PWD/sbt/bin" >> $GITHUB_PATH
-
-    # 4) Cache Ivy + sbt dirs
-    - uses: actions/cache@v3
+    # ── 3 ▸ Cache Maven deps  ────────────────────────────────────
+    - name: Cache Maven repo
+      uses: actions/cache@v3
       with:
-        path: |
-          ~/.ivy2/cache
-          ~/.sbt
-        key: ${{ runner.os }}-sbt-${{ hashFiles('**/*.sbt') }}
+        path: ~/.m2/repository
+        key:  ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
 
-    # 5) Assemble the REST-service fat-jar
-    - name: sbt servicesJVM/assembly
-      run: sbt "servicesJVM/assembly"
+    # ── 4 ▸ Build ONLY the “interactive” module  ─────────────────
+    #        -P fat-jar profile makes an all-deps shaded jar
+    - name: Build interactive fat-jar
+      run: |
+        ./mvnw -B -pl org.omg.sysml.interactive -am \
+               -Pfat-jar,skip-tests \
+               verify
 
-    # 6) Upload artifact
-    - uses: actions/upload-artifact@v4
+    # ── 5 ▸ Upload the jar as CI artifact  ───────────────────────
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
       with:
         name: sysml-services-jar
-        path: |
-          **/servicesJVM/target/scala*/org.*sysml*.jar
+        path: org.omg.sysml.interactive/target/org.omg.sysml.interactive*-all.jar
