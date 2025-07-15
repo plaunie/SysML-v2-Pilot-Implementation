@@ -1,0 +1,86 @@
+name: Build interactive fat-jar
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    env:
+      GH_PACKAGES_PAT: ${{ secrets.GH_PACKAGES_PAT }}
+    steps:
+      # 1. Checkout full history
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 2. Set up Temurin JDK 21
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # 3. Cache Maven repository
+      - uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+
+      # 4. Configure MAVEN_OPTS
+      - name: Configure Maven options
+        run: |
+          opts="-Djava.net.preferIPv4Stack=true"
+          if [ -n "${HTTP_PROXY}" ]; then
+            host=$(echo "$HTTP_PROXY" | awk -F[/:] '{print $4}')
+            port=$(echo "$HTTP_PROXY" | awk -F[/:] '{print $5}')
+            opts="$opts -Dhttp.proxyHost=$host -Dhttp.proxyPort=$port -Dhttps.proxyHost=$host -Dhttps.proxyPort=$port"
+          fi
+          echo "MAVEN_OPTS=$opts" >> "$GITHUB_ENV"
+
+      # 5. Inject Tycho 3.0.4 and build fat-jar
+      - name: Build interactive shaded jar
+        run: |
+          mkdir -p .mvn
+          cat <<'XML' > .mvn/extensions.xml
+          <extensions>
+            <extension>
+              <groupId>org.eclipse.tycho</groupId>
+              <artifactId>tycho-maven-plugin</artifactId>
+              <version>3.0.4</version>
+            </extension>
+            <extension>
+              <groupId>org.eclipse.tycho.extras</groupId>
+              <artifactId>tycho-pomless</artifactId>
+              <version>1.5.1</version>
+            </extension>
+          </extensions>
+          XML
+
+          ./mvnw -B \
+            -pl org.omg.sysml.interactive -am \
+            -Pstandalone \
+            -DskipTests \
+            -Dtycho.executionEnvironment=JavaSE-21 \
+            package
+
+      # 6. Optionally deploy to GitHub Packages
+      - name: Deploy to GitHub Packages
+        if: env.GH_PACKAGES_PAT != ''
+        run: |
+          ./mvnw -B \
+            deploy \
+            -pl org.omg.sysml.interactive -am \
+            -Pstandalone \
+            -DskipTests \
+            -Dtycho.executionEnvironment=JavaSE-21
+        env:
+          GITHUB_TOKEN: ${{ env.GH_PACKAGES_PAT }}
+
+      # 7. Upload fat-jar artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sysml-interactive-fatjar
+          path: org.omg.sysml.interactive/target/*-all.jar
