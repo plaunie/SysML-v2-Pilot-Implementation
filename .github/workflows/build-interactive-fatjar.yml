@@ -1,5 +1,6 @@
 name: Build interactive fat-jar
 
+
 on:
   push:
     branches: [ main ]
@@ -13,9 +14,11 @@ jobs:
       GH_PACKAGES_PAT: ${{ secrets.GH_PACKAGES_PAT }}
     steps:
       # 1. Checkout full history
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
 
       # 2. Set up Temurin JDK 21
       - uses: actions/setup-java@v4
@@ -41,6 +44,7 @@ jobs:
           echo "MAVEN_OPTS=$opts" >> "$GITHUB_ENV"
 
       # 5. Inject Tycho 3.0.4 and build fat-jar
+
       - name: Build interactive shaded jar
         run: |
           mkdir -p .mvn
@@ -56,6 +60,7 @@ jobs:
               <artifactId>tycho-pomless</artifactId>
               <version>1.5.1</version>
             </extension>
+
           </extensions>
           XML
 
@@ -67,6 +72,7 @@ jobs:
             package
 
       # 6. Optionally deploy to GitHub Packages
+
       - name: Deploy to GitHub Packages
         if: env.GH_PACKAGES_PAT != ''
         run: |
@@ -80,7 +86,9 @@ jobs:
           GITHUB_TOKEN: ${{ env.GH_PACKAGES_PAT }}
 
       # 7. Upload fat-jar artifact
+
       - uses: actions/upload-artifact@v4
         with:
           name: sysml-interactive-fatjar
           path: org.omg.sysml.interactive/target/*-all.jar
+
