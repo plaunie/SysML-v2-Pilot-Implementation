@@ -12,7 +12,6 @@ jobs:
     permissions: { contents: read }
     env:
       GH_PACKAGES_PAT: ${{ secrets.GH_PACKAGES_PAT }}
-
     steps:
       # 1. Checkout full history
 
@@ -33,7 +32,19 @@ jobs:
           path: ~/.m2/repository
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
 
-      # 4. Inject Tycho 3.0.4 and build fat-jar
+      # 4. Configure MAVEN_OPTS
+      - name: Configure Maven options
+        run: |
+          opts="-Djava.net.preferIPv4Stack=true"
+          if [ -n "${HTTP_PROXY}" ]; then
+            host=$(echo "$HTTP_PROXY" | awk -F[/:] '{print $4}')
+            port=$(echo "$HTTP_PROXY" | awk -F[/:] '{print $5}')
+            opts="$opts -Dhttp.proxyHost=$host -Dhttp.proxyPort=$port -Dhttps.proxyHost=$host -Dhttps.proxyPort=$port"
+          fi
+          echo "MAVEN_OPTS=$opts" >> "$GITHUB_ENV"
+
+      # 5. Inject Tycho 3.0.4 and build fat-jar
+
       - name: Build interactive shaded jar
         run: |
           mkdir -p .mvn
@@ -44,6 +55,12 @@ jobs:
               <artifactId>tycho-maven-plugin</artifactId>
               <version>3.0.4</version>
             </extension>
+            <extension>
+              <groupId>org.eclipse.tycho.extras</groupId>
+              <artifactId>tycho-pomless</artifactId>
+              <version>1.5.1</version>
+            </extension>
+
           </extensions>
           XML
 
@@ -54,7 +71,8 @@ jobs:
             -Dtycho.executionEnvironment=JavaSE-21 \
             package
 
-      # 5. Optionally deploy to GitHub Packages
+      # 6. Optionally deploy to GitHub Packages
+
       - name: Deploy to GitHub Packages
         if: env.GH_PACKAGES_PAT != ''
         run: |
@@ -67,7 +85,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ env.GH_PACKAGES_PAT }}
 
-      # 6. Upload fat-jar artifact
+      # 7. Upload fat-jar artifact
+
       - uses: actions/upload-artifact@v4
         with:
           name: sysml-interactive-fatjar
